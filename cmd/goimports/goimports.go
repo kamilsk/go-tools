@@ -25,6 +25,14 @@ import (
 	"golang.org/x/tools/internal/imports"
 )
 
+const unknown = "unknown"
+
+var (
+	commit  = unknown
+	date    = unknown
+	version = "dev"
+)
+
 var (
 	// main operation modes
 	list   = flag.Bool("l", false, "list files whose formatting differs from goimport's")
@@ -51,6 +59,8 @@ var (
 )
 
 func init() {
+	flag.BoolVar(&options.IgnoreGrouping, "ungroup", false, "force reset custom import sorting")
+
 	flag.BoolVar(&options.AllErrors, "e", false, "report all errors (not just the first 10 on different lines)")
 	flag.StringVar(&options.LocalPrefix, "local", "", "put imports beginning with this string after 3rd-party packages; comma-separated list")
 	flag.BoolVar(&options.FormatOnly, "format-only", false, "if true, don't fix imports and only format. In this mode, goimports is effectively gofmt, with the addition that imports are grouped into sections.")
@@ -62,8 +72,18 @@ func report(err error) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: goimports [flags] [path ...]\n")
+	_, _ = fmt.Fprintln(os.Stderr, "usage: goimports [flags] [path ...]")
 	flag.PrintDefaults()
+	_, _ = fmt.Fprintln(os.Stderr)
+	_, _ = fmt.Fprintf(os.Stderr, `metadata:
+  version     : %s
+  build date  : %s
+  git hash    : %s
+  go version  : %s
+  go compiler : %s
+  platform    : %s`,
+		version, date, commit, runtime.Version(), runtime.Compiler,
+		fmt.Sprintf("%s/%s\n", runtime.GOOS, runtime.GOARCH))
 	os.Exit(2)
 }
 
@@ -102,7 +122,7 @@ func processFile(filename string, in io.Reader, out io.Writer, argType argumentT
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		in = f
 	}
 
@@ -147,7 +167,7 @@ func processFile(filename string, in io.Reader, out io.Writer, argType argumentT
 	if !bytes.Equal(src, res) {
 		// formatting has changed
 		if *list {
-			fmt.Fprintln(out, filename)
+			_, _ = fmt.Fprintln(out, filename)
 		}
 		if *write {
 			if argType == fromStdin {
@@ -173,7 +193,7 @@ func processFile(filename string, in io.Reader, out io.Writer, argType argumentT
 				return fmt.Errorf("computing diff: %s", err)
 			}
 			fmt.Printf("diff -u %s %s\n", filepath.ToSlash(filename+".orig"), filepath.ToSlash(filename))
-			out.Write(data)
+			_, _ = out.Write(data)
 		}
 	}
 
@@ -195,7 +215,7 @@ func visitFile(path string, f os.FileInfo, err error) error {
 }
 
 func walkDir(path string) {
-	filepath.Walk(path, visitFile)
+	_ = filepath.Walk(path, visitFile)
 }
 
 func main() {
@@ -239,7 +259,7 @@ func gofmtMain() {
 
 	if *cpuProfile != "" {
 		bw, flush := bufferedFileWriter(*cpuProfile)
-		pprof.StartCPUProfile(bw)
+		_ = pprof.StartCPUProfile(bw)
 		defer flush()
 		defer pprof.StopCPUProfile()
 	}
@@ -264,7 +284,7 @@ func gofmtMain() {
 		options.Env.Logf = log.Printf
 	}
 	if options.TabWidth < 0 {
-		fmt.Fprintf(os.Stderr, "negative tabwidth %d\n", options.TabWidth)
+		_, _ = fmt.Fprintf(os.Stderr, "negative tabwidth %d\n", options.TabWidth)
 		exitCode = 2
 		return
 	}
@@ -305,7 +325,7 @@ func writeTempFile(dir, prefix string, data []byte) (string, error) {
 		err = err1
 	}
 	if err != nil {
-		os.Remove(file.Name())
+		_ = os.Remove(file.Name())
 		return "", err
 	}
 	return file.Name(), nil
@@ -316,13 +336,13 @@ func diff(b1, b2 []byte, filename string) (data []byte, err error) {
 	if err != nil {
 		return
 	}
-	defer os.Remove(f1)
+	defer func() { _ = os.Remove(f1) }()
 
 	f2, err := writeTempFile("", "gofmt", b2)
 	if err != nil {
 		return
 	}
-	defer os.Remove(f2)
+	defer func() { _ = os.Remove(f2) }()
 
 	cmd := "diff"
 	if runtime.GOOS == "plan9" {

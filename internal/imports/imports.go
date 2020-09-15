@@ -42,6 +42,8 @@ type Options struct {
 	TabWidth  int  // Tab width (8 if nil *Options provided)
 
 	FormatOnly bool // Disable the insertion and deletion of imports
+
+	IgnoreGrouping bool // Ignore custom import sorting
 }
 
 // Process implements golang.org/x/tools/imports.Process with explicit context in opt.Env.
@@ -105,7 +107,7 @@ func ApplyFixes(fixes []*ImportFix, filename string, src []byte, opt *Options, e
 
 func formatFile(fileSet *token.FileSet, file *ast.File, src []byte, adjust func(orig []byte, src []byte) []byte, opt *Options) ([]byte, error) {
 	mergeImports(fileSet, file)
-	sortImports(opt.LocalPrefix, fileSet, file)
+	sortImports(opt.LocalPrefix, fileSet, file, opt.IgnoreGrouping)
 	imps := astutil.Imports(fileSet, file)
 	var spacesBefore []string // import paths we need spaces before
 	for _, impSection := range imps {
@@ -122,7 +124,6 @@ func formatFile(fileSet *token.FileSet, file *ast.File, src []byte, adjust func(
 			}
 			lastGroup = groupNum
 		}
-
 	}
 
 	printerMode := printer.UseSpaces
@@ -306,7 +307,7 @@ func matchSpace(orig []byte, src []byte) []byte {
 	return b.Bytes()
 }
 
-var impLine = regexp.MustCompile(`^\s+(?:[\w\.]+\s+)?"(.+)"`)
+var impLine = regexp.MustCompile(`^\s+(?:[\w.]+\s+)?"(.+)"`)
 
 func addImportSpaces(r io.Reader, breaks []string) ([]byte, error) {
 	var out bytes.Buffer
@@ -340,7 +341,7 @@ func addImportSpaces(r io.Reader, breaks []string) ([]byte, error) {
 			}
 		}
 
-		fmt.Fprint(&out, s)
+		_, _ = fmt.Fprint(&out, s)
 	}
 	return out.Bytes(), nil
 }
