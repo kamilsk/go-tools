@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -o nounset
+set -o pipefail
+
+function help() {
+  echo "$0 <task> <args>"
+  echo "Tasks:"
+  compgen -A function | grep -v '^__' | sort | cat -n
+}
+
+function sync() {
+  git fetch --all --prune --force
+
+  git tag --list \
+  | grep -v '^v[0-9]' \
+  | grep -v goimports \
+  | xargs -n1 git untag
+
+  git branch -a \
+  | grep -v upstream \
+  | grep -v master \
+  | grep -v HEAD \
+  | grep -v extended \
+  | grep -v simplified \
+  | awk -F '/' '{print $2" "$3}' \
+  | xargs -n2 git push -d "${1}" "${2}"
+}
+
+__default() { help; }
+
+"${@:-__default}"
