@@ -1,0 +1,64 @@
+---
+project_name: go-tools
+
+archives:
+  - id: goimports
+    files:
+      - LICENSE
+      - PATENTS
+    format: tar.gz
+    name_template: "{{.Binary}}_{{.Version}}_{{.Os}}-{{.Arch}}"
+    replacements:
+      386: 32bit
+      amd64: 64bit
+      darwin: macOS
+      linux: Linux
+
+brews:
+  - name: goimports
+    caveats:
+    commit_author:
+      name: Kamil Samigullin
+      email: kamil@samigullin.info
+    description: |
+      Command goimports updates your Go import lines,
+      adding missing ones and removing unreferenced ones.
+      In addition to fixing imports, goimports also formats
+      your code in the same style as gofmt so it can be used
+      as a replacement for your editor's gofmt-on-save hook.
+    folder: Formula
+    homepage: https://github.com/kamilsk/go-tools
+    tap:
+      owner: kamilsk
+      name: homebrew-tap
+    install: |
+      bin.install "goimports"
+      prefix.install_metafiles
+    test: |
+      system "#{bin}/goimports -help"
+
+builds:
+  - id: goimports
+    binary: goimports
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    goarch:
+      - 386
+      - amd64
+    goos:
+      - darwin
+      - linux
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    main: ./cmd/goimports
+
+changelog: { skip: true }
+
+checksum: { name_template: checksums.txt }
+
+release:
+  github:
+    owner: kamilsk
+    name: go-tools
