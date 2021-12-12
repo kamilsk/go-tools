@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+function clean() {
+  git fetch upstream --force --prune --tags
+  git fetch origin --force --prune --tags
+
+  git branch -a |
+    grep remotes/ |
+    grep -v upstream |
+    grep -v main |
+    grep -v master |
+    grep -v HEAD |
+    grep -v extended |
+    grep -v simplified |
+    sed 's|remotes/||g' |
+    sed 's|/| |' |
+    xargs -n2 git push -d || true
+
+  git tag --list |
+    grep -v '^v[0-9]' |
+    grep -v "$(version)" |
+    xargs -n1 git untag || true
+}
+
+function fix() {
+  git tag --list | xargs -n1 git tag -d || true
+  git fetch origin --tags
+}
+
+function sync() {
+  clean
+
+  local fork
+  local reason=goimports
+  local upstream=upstream/master
+
+  local version=${1:-}
+  local latest
+  latest=$(version raw)
+  case "${version}" in
+  '' | latest)
+    version=$(git tag -l 'v[0-9]*' --sort=-committerdate | head -1)
+    ;;
+  esac
+  if [ "${version}" = "${latest}" ]; then
+    echo nothing to sync with "${version}" version
+    return 1
+  fi
+
+  git rebase --onto "${version}" "${upstream}"
+  fork=$(git merge-base --fork-point "${version}" 2>/dev/null || git rev-list -n1 "${version}")
+  git untag "${version}"
+  git untag "${reason}"
+
+  git tag -m 'sync with upstream' "${version}"
+  git tag -m "extend by ${reason}" "${reason}" "${fork}"
+
+  git please
+  git push --follow-tags
+  publish
+  open https://github.com/kamilsk/go-tools/releases
+}
+
+function publish() {
+  goreleaser --release-notes CHANGES.md --rm-dist
+}
+
+function version() {
+  if [ "${1:-}" = 'raw' ]; then
+    git describe --tags --always
+    return $?
+  fi
+  git describe --tags | rev | cut -d - -f3- | rev
+}
+
+function help() {
+  echo "$0 <task> <args>"
+  echo "Tasks:"
+  compgen -A function | grep -v '^__' | sort | cat -n
+}
+
+__default() { help; }
+
+"${@:-__default}"
