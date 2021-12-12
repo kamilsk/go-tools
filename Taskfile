@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+set -o nounset
+set -o pipefail
+
+function help() {
+  echo "$0 <task> <args>"
+  echo "Tasks:"
+  compgen -A function | grep -v '^__' | sort | cat -n
+}
+
+function publish() {
+  goreleaser --release-notes CHANGES.md
+}
+
+function sync() {
+  git fetch --all --prune --force
+
+  local fork
+  local reason=goimports
+  local upstream=upstream/master
+
+  local version=${1:-}
+  local latest
+  latest=$(git describe --tags)
+  case "${version}" in
+  '' | latest)
+    version=$(git tag -l 'v[0-9]*' --sort=-committerdate | head -1)
+    ;;
+  esac
+  if [ "${version}" = "${latest}" ]; then
+    echo nothing to sync with "${version}" version
+    return 1
+  fi
+
+  git rebase --onto "${version}" "${upstream}"
+  fork=$(git merge-base --fork-point "${version}")
+  git untag "${version}"
+  git untag "${reason}"
+
+  git tag --list |
+    grep -v '^v[0-9]' |
+    xargs -n1 git untag
+
+  git tag "${version}"
+  git tag "${reason}" "${fork}"
+
+  git please
+  git push --tags
+  open https://github.com/kamilsk/go-tools/releases
+}
+
+function clean() {
+  git branch -a |
+    grep -v upstream |
+    grep -v main |
+    grep -v master |
+    grep -v HEAD |
+    grep -v extended |
+    grep -v simplified |
+    awk -F '/' '{print $2" "$3}' |
+    xargs -n2 git push -d \$1 \$2
+}
+
+__default() { help; }
+
+"${@:-__default}"
