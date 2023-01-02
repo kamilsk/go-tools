@@ -236,6 +236,8 @@ func gofmtMain() {
 	flag.Usage = usage
 	paths := parseFlags()
 
+	hack()
+
 	if *cpuProfile != "" {
 		bw, flush := bufferedFileWriter(*cpuProfile)
 		pprof.StartCPUProfile(bw)
