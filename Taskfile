@@ -67,6 +67,27 @@ function fetch() {
   done
 }
 
+function patch() {
+  local vendor=latest version
+
+  case "${#}" in
+  3)
+    version=${1}
+    vendor=${3}
+    ;;
+  2) vendor=${2} ;;
+  1) version=${1} ;;
+  esac
+
+  _ git rebase -i "${config['reason']}"
+  _ go mod edit -require="${config['vendor']}@${vendor}"
+  _ go mod tidy
+  _ git add .
+  _ amend
+  _ git rebase --continue
+  release "${version:-$(version)}"
+}
+
 function prune() {
   local remote branch
   while read -r remote branch; do
